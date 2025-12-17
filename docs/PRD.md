@@ -1,0 +1,1694 @@
+# Product Requirements Document: Reusable Website Foundation
+
+**Version:** 1.2
+**Last Updated:** 2025-12-16
+**Status:** Draft
+
+---
+
+## Table of Contents
+
+1. [Executive Summary](#executive-summary)
+2. [Problem Statement](#problem-statement)
+3. [Goals & Objectives](#goals--objectives)
+4. [User Personas & Tiers](#user-personas--tiers)
+5. [Technical Architecture](#technical-architecture)
+6. [Authentication System](#authentication-system)
+7. [Database Design](#database-design)
+8. [Feature Requirements](#feature-requirements)
+9. [Admin Dashboard](#admin-dashboard)
+10. [Implemented Project Structure](#implemented-project-structure)
+11. [Project Structure](#project-structure)
+12. [VPS Deployment Architecture](#vps-deployment-architecture)
+13. [Setup & Configuration Guide](#setup--configuration-guide)
+14. [Security Considerations](#security-considerations)
+15. [Reusability Guidelines](#reusability-guidelines)
+16. [Future Considerations](#future-considerations)
+
+---
+
+## Executive Summary
+
+This document outlines the requirements for a **clean, reusable website foundation** that provides:
+
+- Robust authentication with multi-tier user access control
+- Supabase PostgreSQL database integration with Row Level Security
+- Lightweight custom admin dashboard for user management
+- A modular architecture designed to be copied and extended for various projects
+- Self-managed authentication using Supabase Auth (recommended over Clerk for self-hosted control)
+- VPS deployment architecture with reverse proxy configuration for production hosting
+
+The foundation serves as a "starter template" that can be cloned and customized for different web applications while maintaining consistent security patterns and code organization.
+
+---
+
+## Problem Statement
+
+Building a new web application from scratch requires repeatedly implementing:
+
+- User authentication and session management
+- Role-based access control systems
+- Database connections and schema management
+- Protected routes and API endpoints
+- Consistent project structure
+
+This foundation eliminates repetitive boilerplate work while ensuring security best practices are built-in from the start.
+
+---
+
+## Goals & Objectives
+
+### Primary Goals
+
+| Goal | Success Metric |
+|------|----------------|
+| Create a reusable foundation | Clone-to-running-app in < 30 minutes |
+| Implement secure authentication | Zero auth-related vulnerabilities |
+| Support tiered user access | Configurable N-tier access system |
+| Integrate Supabase database | Full CRUD with RLS policies |
+| Ensure maintainability | Clear documentation, typed codebase |
+
+### Non-Goals
+
+- Building a complete application (this is a shell)
+- Implementing business-specific features
+- Creating a full design system (basic styling only)
+
+---
+
+## User Personas & Tiers
+
+### Tier System Architecture
+
+The foundation supports a flexible N-tier system. Default configuration includes:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     TIER HIERARCHY                          │
+├─────────────────────────────────────────────────────────────┤
+│  TIER 0: Anonymous       │ Public pages only               │
+│  TIER 1: Free User       │ Basic authenticated access      │
+│  TIER 2: Premium User    │ Enhanced features + content     │
+│  TIER 3: Admin           │ Full system access + management │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Access Control Matrix
+
+| Resource Type | Anonymous | Free | Premium | Admin |
+|--------------|-----------|------|---------|-------|
+| Public Pages | ✓ | ✓ | ✓ | ✓ |
+| Dashboard | ✗ | ✓ | ✓ | ✓ |
+| Premium Content | ✗ | ✗ | ✓ | ✓ |
+| Admin Panel | ✗ | ✗ | ✗ | ✓ |
+| API: Public | ✓ | ✓ | ✓ | ✓ |
+| API: Protected | ✗ | ✓ | ✓ | ✓ |
+| API: Admin | ✗ | ✗ | ✗ | ✓ |
+
+---
+
+## Technical Architecture
+
+### Recommended Technology Stack
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│                        FRONTEND                                │
+│  Next.js 14+ (App Router) │ React 18 │ TypeScript │ Tailwind  │
+├────────────────────────────────────────────────────────────────┤
+│                      AUTHENTICATION                            │
+│        Supabase Auth (Self-managed, integrated with DB)        │
+├────────────────────────────────────────────────────────────────┤
+│                        DATABASE                                │
+│  Supabase PostgreSQL │ Row Level Security │ Real-time (opt)   │
+├────────────────────────────────────────────────────────────────┤
+│                       UTILITIES                                │
+│   Zod (validation) │ React Hook Form │ Tanstack Query (opt)   │
+└────────────────────────────────────────────────────────────────┘
+```
+
+### Why Supabase Auth Over Clerk?
+
+| Factor | Supabase Auth | Clerk |
+|--------|---------------|-------|
+| Self-managed | ✓ Full control | ✗ Vendor-managed |
+| Data ownership | ✓ Your database | ✗ External storage |
+| Cost | ✓ Generous free tier | $ Paid at scale |
+| Database integration | ✓ Native RLS | ✗ Separate sync needed |
+| Security updates | ✓ Client updates | ✓ Automatic |
+| Offline capability | ✓ Self-hostable | ✗ Cloud-only |
+| OAuth providers | ✓ All major | ✓ All major |
+| MFA support | ✓ TOTP, SMS | ✓ Multiple options |
+
+**Recommendation:** Use **Supabase Auth** for this foundation because:
+1. Already integrating Supabase for database
+2. Native Row Level Security integration
+3. Full data ownership and self-management
+4. No additional vendor dependencies
+5. Automatic security updates via `@supabase/supabase-js` package updates
+
+---
+
+## Authentication System
+
+### Authentication Flows
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    AUTHENTICATION FLOWS                         │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  1. EMAIL/PASSWORD SIGNUP                                       │
+│     User → Email/Pass → Supabase Auth → Verification Email     │
+│     → Email Confirmed → Profile Created → Session Issued       │
+│                                                                 │
+│  2. EMAIL/PASSWORD LOGIN                                        │
+│     User → Email/Pass → Supabase Auth → Session Issued         │
+│     → JWT Token → Stored in HTTP-only Cookie                   │
+│                                                                 │
+│  3. OAUTH (Google, GitHub, etc.)                               │
+│     User → Provider → Callback → Profile Upsert → Session      │
+│                                                                 │
+│  4. MAGIC LINK (Optional)                                       │
+│     User → Email → Magic Link Sent → Click → Session Issued    │
+│                                                                 │
+│  5. PASSWORD RESET                                              │
+│     User → Email → Reset Link → New Password → Redirect        │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Session Management
+
+- **Server-side sessions** via Supabase Auth Helpers
+- **JWT tokens** stored in HTTP-only cookies (secure, no XSS exposure)
+- **Automatic token refresh** handled by Supabase client
+- **Session duration:** Configurable (default 1 week)
+
+---
+
+## Database Design
+
+### Core Schema
+
+```sql
+-- ============================================
+-- CORE TABLES (Managed by Supabase Auth)
+-- ============================================
+-- auth.users (built-in, do not modify directly)
+
+-- ============================================
+-- APPLICATION TABLES
+-- ============================================
+
+-- User Profiles (extends auth.users)
+CREATE TABLE public.profiles (
+    id UUID REFERENCES auth.users(id) PRIMARY KEY,
+    email TEXT NOT NULL,
+    full_name TEXT,
+    avatar_url TEXT,
+    tier INTEGER DEFAULT 1 CHECK (tier >= 0 AND tier <= 10),
+    tier_name TEXT GENERATED ALWAYS AS (
+        CASE tier
+            WHEN 0 THEN 'anonymous'
+            WHEN 1 THEN 'free'
+            WHEN 2 THEN 'premium'
+            WHEN 3 THEN 'admin'
+            ELSE 'custom_' || tier::text
+        END
+    ) STORED,
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Tier Definitions (for dynamic tier management)
+CREATE TABLE public.tiers (
+    id SERIAL PRIMARY KEY,
+    tier_level INTEGER UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    permissions JSONB DEFAULT '[]',
+    max_resources JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Insert default tiers
+INSERT INTO public.tiers (tier_level, name, description, permissions) VALUES
+    (0, 'anonymous', 'Unauthenticated visitors', '["read:public"]'),
+    (1, 'free', 'Free registered users', '["read:public", "read:basic", "write:own"]'),
+    (2, 'premium', 'Premium subscribers', '["read:public", "read:basic", "read:premium", "write:own"]'),
+    (3, 'admin', 'System administrators', '["*"]');
+
+-- Audit Log (optional but recommended)
+CREATE TABLE public.audit_log (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id),
+    action TEXT NOT NULL,
+    resource_type TEXT,
+    resource_id TEXT,
+    metadata JSONB DEFAULT '{}',
+    ip_address INET,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+### Row Level Security Policies
+
+```sql
+-- ============================================
+-- ROW LEVEL SECURITY POLICIES
+-- ============================================
+
+-- Enable RLS on all tables
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tiers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
+
+-- PROFILES POLICIES
+-- Users can read their own profile
+CREATE POLICY "Users can view own profile"
+    ON public.profiles FOR SELECT
+    USING (auth.uid() = id);
+
+-- Users can update their own profile (except tier)
+CREATE POLICY "Users can update own profile"
+    ON public.profiles FOR UPDATE
+    USING (auth.uid() = id)
+    WITH CHECK (auth.uid() = id);
+
+-- Admins can view all profiles
+CREATE POLICY "Admins can view all profiles"
+    ON public.profiles FOR SELECT
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE id = auth.uid() AND tier >= 3
+        )
+    );
+
+-- Admins can update any profile
+CREATE POLICY "Admins can update any profile"
+    ON public.profiles FOR UPDATE
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE id = auth.uid() AND tier >= 3
+        )
+    );
+
+-- TIERS POLICIES
+-- Anyone can read tier definitions
+CREATE POLICY "Anyone can read tiers"
+    ON public.tiers FOR SELECT
+    TO authenticated, anon
+    USING (true);
+
+-- Only admins can modify tiers
+CREATE POLICY "Admins can modify tiers"
+    ON public.tiers FOR ALL
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE id = auth.uid() AND tier >= 3
+        )
+    );
+
+-- AUDIT LOG POLICIES
+-- Users can read their own audit entries
+CREATE POLICY "Users can view own audit log"
+    ON public.audit_log FOR SELECT
+    USING (auth.uid() = user_id);
+
+-- Admins can view all audit entries
+CREATE POLICY "Admins can view all audit logs"
+    ON public.audit_log FOR SELECT
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE id = auth.uid() AND tier >= 3
+        )
+    );
+```
+
+### Database Functions & Triggers
+
+```sql
+-- ============================================
+-- FUNCTIONS & TRIGGERS
+-- ============================================
+
+-- Auto-create profile on user signup
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO public.profiles (id, email, full_name, avatar_url)
+    VALUES (
+        NEW.id,
+        NEW.email,
+        COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name'),
+        NEW.raw_user_meta_data->>'avatar_url'
+    );
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- Update timestamp trigger
+CREATE OR REPLACE FUNCTION public.update_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER update_profiles_updated_at
+    BEFORE UPDATE ON public.profiles
+    FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
+
+-- Helper function to check user tier
+CREATE OR REPLACE FUNCTION public.get_user_tier(user_id UUID)
+RETURNS INTEGER AS $$
+    SELECT COALESCE(
+        (SELECT tier FROM public.profiles WHERE id = user_id),
+        0
+    );
+$$ LANGUAGE sql SECURITY DEFINER;
+
+-- Helper function to check permission
+CREATE OR REPLACE FUNCTION public.user_has_permission(user_id UUID, required_tier INTEGER)
+RETURNS BOOLEAN AS $$
+    SELECT public.get_user_tier(user_id) >= required_tier;
+$$ LANGUAGE sql SECURITY DEFINER;
+```
+
+---
+
+## Feature Requirements
+
+### Core Features (Must Have)
+
+#### F1: Authentication Pages
+| Feature | Description | Priority |
+|---------|-------------|----------|
+| F1.1 | Sign up page (email/password) | P0 |
+| F1.2 | Login page (email/password) | P0 |
+| F1.3 | Password reset flow | P0 |
+| F1.4 | Email verification | P0 |
+| F1.5 | OAuth integration (Google, GitHub) | P1 |
+| F1.6 | Logout functionality | P0 |
+
+#### F2: Protected Routes
+| Feature | Description | Priority |
+|---------|-------------|----------|
+| F2.1 | Middleware-based route protection | P0 |
+| F2.2 | Tier-based access control | P0 |
+| F2.3 | Redirect to login for unauthenticated | P0 |
+| F2.4 | Redirect to upgrade for insufficient tier | P1 |
+
+#### F3: User Profile
+| Feature | Description | Priority |
+|---------|-------------|----------|
+| F3.1 | Profile viewing | P0 |
+| F3.2 | Profile editing (name, avatar) | P1 |
+| F3.3 | Account settings | P1 |
+| F3.4 | Password change | P1 |
+
+#### F4: Admin Features
+
+> **See detailed specifications in [Admin Dashboard](#admin-dashboard) section.**
+
+| Feature | Description | Priority |
+|---------|-------------|----------|
+| F4.1 | Admin dashboard overview (stats, metrics) | P1 |
+| F4.2 | User list with search/filter/pagination | P1 |
+| F4.3 | User detail view and tier management | P1 |
+| F4.4 | Audit log viewer | P2 |
+| F4.5 | Tier configuration management | P2 |
+
+### Utility Features
+
+#### F5: Developer Experience
+| Feature | Description | Priority |
+|---------|-------------|----------|
+| F5.1 | TypeScript strict mode | P0 |
+| F5.2 | Environment variable validation | P0 |
+| F5.3 | Type-safe database queries | P0 |
+| F5.4 | Reusable React hooks | P0 |
+| F5.5 | Component library structure | P1 |
+
+---
+
+## Admin Dashboard
+
+### Design Philosophy
+
+The foundation includes a **lightweight custom admin panel** built with the same technology stack as the main application. This approach was chosen over external solutions (like React Admin) for the following reasons:
+
+| Advantage | Description |
+|-----------|-------------|
+| **Minimal Bundle Size** | No additional framework dependencies (~0 KB added) |
+| **Consistent Styling** | Uses same Tailwind CSS + shadcn/ui as the main app |
+| **Full Control** | Easy to customize and extend for project-specific needs |
+| **Same Patterns** | Developers learn one codebase, not two |
+| **Reusable Structure** | Admin patterns work for any entity, not just users |
+
+### Admin Features Overview
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     ADMIN DASHBOARD                             │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
+│  │  Dashboard  │  │    Users    │  │   Settings  │             │
+│  │  (Overview) │  │ (Manage)    │  │  (System)   │             │
+│  └─────────────┘  └─────────────┘  └─────────────┘             │
+│                                                                 │
+│  Dashboard:        Users:              Settings:               │
+│  - Total users     - List all users    - Tier definitions      │
+│  - Users by tier   - Search/filter     - System config         │
+│  - Recent signups  - Change tier       - Audit log viewer      │
+│  - Active today    - Disable account                           │
+│                    - View details                              │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Admin Route Structure
+
+```
+src/app/(admin)/admin/
+├── layout.tsx              # Admin layout with tier 3+ guard
+├── page.tsx                # Dashboard overview
+├── users/
+│   ├── page.tsx            # User list with search/filter/pagination
+│   └── [id]/
+│       └── page.tsx        # User detail view & edit
+├── tiers/
+│   └── page.tsx            # Tier configuration management
+└── audit/
+    └── page.tsx            # Audit log viewer
+```
+
+### Feature Specifications
+
+#### F4.1: Admin Dashboard Overview
+
+**Purpose:** Provide at-a-glance system health and user metrics.
+
+**Components:**
+```
+┌──────────────────────────────────────────────────────────────┐
+│  Admin Dashboard                                    [Logout] │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────┐│
+│  │ Total Users│ │ Free Tier  │ │  Premium   │ │   Admins   ││
+│  │    1,234   │ │    1,100   │ │    130     │ │      4     ││
+│  └────────────┘ └────────────┘ └────────────┘ └────────────┘│
+│                                                              │
+│  Recent Signups                    Active Users (24h)        │
+│  ┌─────────────────────────────┐  ┌─────────────────────────┐│
+│  │ user@email.com    2min ago  │  │  ████████████░░░  78%   ││
+│  │ another@email.com 15min ago │  │  142 active / 183 total ││
+│  │ test@email.com    1hr ago   │  │                         ││
+│  └─────────────────────────────┘  └─────────────────────────┘│
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+```
+
+**Data Source:** Server component with direct Supabase queries using service role.
+
+#### F4.2: User List & Management
+
+**Purpose:** View, search, filter, and manage all users in the system.
+
+**Features:**
+| Feature | Description |
+|---------|-------------|
+| User List | Paginated table of all users (25 per page default) |
+| Search | Full-text search by email or name |
+| Filter by Tier | Dropdown to filter by specific tier |
+| Sort | By created date, email, tier, last login |
+| Bulk Actions | Select multiple users for tier change |
+
+**User List Table Columns:**
+```typescript
+interface UserListColumns {
+  avatar: string;        // Avatar image or initials
+  email: string;         // User email (primary identifier)
+  fullName: string;      // Display name
+  tier: TierBadge;       // Color-coded tier badge
+  createdAt: Date;       // Registration date
+  lastLogin: Date;       // Last activity
+  status: 'active' | 'disabled';
+  actions: ActionMenu;   // Edit, Disable, Delete
+}
+```
+
+**UI Mockup:**
+```
+┌──────────────────────────────────────────────────────────────┐
+│  Users                                        [+ Invite User]│
+├──────────────────────────────────────────────────────────────┤
+│  [🔍 Search users...]  [Tier: All ▼]  [Status: All ▼]       │
+├──────────────────────────────────────────────────────────────┤
+│  ☐ │ Avatar │ Email              │ Tier    │ Joined   │ ••• │
+├──────────────────────────────────────────────────────────────┤
+│  ☐ │   JD   │ john@example.com   │ Premium │ Dec 1    │ ••• │
+│  ☐ │   AS   │ alice@example.com  │ Free    │ Nov 28   │ ••• │
+│  ☐ │   BW   │ bob@example.com    │ Admin   │ Nov 15   │ ••• │
+│  ☐ │   CS   │ carol@example.com  │ Free    │ Nov 10   │ ••• │
+├──────────────────────────────────────────────────────────────┤
+│  ◀ Previous │ Page 1 of 50 │ Next ▶      Showing 1-25 of 1234│
+└──────────────────────────────────────────────────────────────┘
+```
+
+#### F4.3: User Detail & Edit
+
+**Purpose:** View full user details and modify user properties.
+
+**Editable Fields (Admin Only):**
+| Field | Type | Notes |
+|-------|------|-------|
+| Tier | Select dropdown | Changes user access level |
+| Status | Toggle | Enable/disable account |
+| Full Name | Text input | For display purposes |
+| Metadata | JSON editor | Custom user data |
+
+**Read-Only Fields:**
+- Email (managed by Supabase Auth)
+- User ID (UUID)
+- Created At
+- Last Login
+- Email Verified status
+
+**UI Mockup:**
+```
+┌──────────────────────────────────────────────────────────────┐
+│  ← Back to Users                                             │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌──────┐  john@example.com                                  │
+│  │  JD  │  John Doe                                          │
+│  └──────┘  Member since December 1, 2024                     │
+│                                                              │
+│  ─────────────────────────────────────────────────────────── │
+│                                                              │
+│  User Information                                            │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │ Email         │ john@example.com            (verified) │  │
+│  │ User ID       │ 550e8400-e29b-41d4-a716-446655440000   │  │
+│  │ Last Login    │ 2 hours ago                            │  │
+│  └────────────────────────────────────────────────────────┘  │
+│                                                              │
+│  Account Settings                              [Save Changes]│
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │ Full Name     │ [John Doe                           ]  │  │
+│  │ Tier          │ [Premium ▼]                            │  │
+│  │ Status        │ [●] Active  [ ] Disabled               │  │
+│  └────────────────────────────────────────────────────────┘  │
+│                                                              │
+│  Danger Zone                                                 │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │ [Delete User] - Permanently remove this user           │  │
+│  └────────────────────────────────────────────────────────┘  │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+```
+
+#### F4.4: Audit Log Viewer
+
+**Purpose:** View system activity for security and debugging.
+
+**Captured Events:**
+| Event | Data Logged |
+|-------|-------------|
+| User signup | user_id, email, timestamp |
+| User login | user_id, ip_address, timestamp |
+| Tier change | user_id, old_tier, new_tier, changed_by |
+| Account disabled | user_id, disabled_by, reason |
+| Password reset | user_id, timestamp |
+
+### Admin Components
+
+```
+src/components/admin/
+├── stats-card.tsx          # Metric display card
+├── user-table.tsx          # Paginated user table
+├── user-table-row.tsx      # Individual user row
+├── user-filters.tsx        # Search and filter controls
+├── tier-badge.tsx          # Color-coded tier indicator
+├── tier-select.tsx         # Tier dropdown selector
+├── user-actions-menu.tsx   # Row action dropdown
+├── pagination.tsx          # Table pagination controls
+├── audit-log-table.tsx     # Audit log display
+└── confirm-dialog.tsx      # Confirmation modal for destructive actions
+```
+
+### Admin API Endpoints
+
+```
+src/app/api/v1/admin/
+├── users/
+│   ├── route.ts            # GET: list users, POST: create user
+│   └── [id]/
+│       ├── route.ts        # GET: user detail, PATCH: update, DELETE: remove
+│       └── tier/
+│           └── route.ts    # PATCH: change user tier
+├── stats/
+│   └── route.ts            # GET: dashboard statistics
+└── audit/
+    └── route.ts            # GET: audit log entries
+```
+
+**API Response Types:**
+```typescript
+// GET /api/v1/admin/users
+interface UsersListResponse {
+  users: UserProfile[];
+  pagination: {
+    page: number;
+    perPage: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+// GET /api/v1/admin/stats
+interface AdminStatsResponse {
+  totalUsers: number;
+  usersByTier: Record<string, number>;
+  recentSignups: UserProfile[];
+  activeToday: number;
+}
+
+// PATCH /api/v1/admin/users/[id]/tier
+interface ChangeTierRequest {
+  tier: number;
+  reason?: string;  // Optional audit note
+}
+```
+
+### Admin Hooks
+
+```typescript
+// src/hooks/admin/use-users.ts
+export function useUsers(options?: {
+  page?: number;
+  perPage?: number;
+  search?: string;
+  tier?: number;
+  sortBy?: 'created_at' | 'email' | 'tier';
+  sortOrder?: 'asc' | 'desc';
+}) {
+  // Returns { users, pagination, isLoading, error, refetch }
+}
+
+// src/hooks/admin/use-user.ts
+export function useUser(userId: string) {
+  // Returns { user, isLoading, error, updateUser, deleteUser }
+}
+
+// src/hooks/admin/use-admin-stats.ts
+export function useAdminStats() {
+  // Returns { stats, isLoading, error }
+}
+```
+
+### Security Considerations for Admin
+
+| Measure | Implementation |
+|---------|----------------|
+| Route Protection | Middleware checks tier >= 3 before rendering |
+| API Protection | All admin API routes verify admin tier server-side |
+| Service Role Client | Admin operations use service role (bypasses RLS) |
+| Audit Logging | All admin actions are logged with admin user ID |
+| Confirmation Dialogs | Destructive actions require explicit confirmation |
+| Rate Limiting | Admin APIs have stricter rate limits |
+
+### Upgrade Path
+
+If more sophisticated admin features are needed later, the foundation can be extended with:
+
+1. **React Admin Integration** - Add `ra-supabase` for advanced CRUD
+2. **Refine Framework** - Drop-in admin framework with Supabase support
+3. **Custom Extensions** - Build on existing patterns for domain-specific admin
+
+---
+
+## Implemented Project Structure
+
+> **Note:** This is the actual directory structure that has been created for this project. It differs from the originally proposed structure in the [Project Structure](#project-structure) section to better support reusability and coexistence with other project directories.
+
+### Design Decisions
+
+The implemented structure places the Next.js application inside a `web/` root directory rather than at the project root. This design allows:
+
+1. **Reusability** - The entire `web/` directory can be copied to new projects
+2. **Coexistence** - Other directories (`scripts/`, `tools/`, `config/`) can live alongside without conflict
+3. **Separation of Concerns** - Clear distinction between web app code, database configs, deployment scripts, and documentation
+4. **Monorepo-Ready** - Structure supports future addition of mobile apps, packages, or other services
+
+### Complete Directory Structure
+
+```
+site-auth-db/
+├── web/                              # Next.js 14+ Application (MAIN APP)
+│   ├── src/
+│   │   ├── app/                      # Next.js App Router
+│   │   │   ├── (auth)/               # Auth route group (public)
+│   │   │   │   ├── login/            # Login page
+│   │   │   │   ├── signup/           # Registration page
+│   │   │   │   ├── forgot-password/  # Password reset request
+│   │   │   │   ├── reset-password/   # Password reset form
+│   │   │   │   └── callback/         # OAuth callback handler
+│   │   │   │
+│   │   │   ├── (protected)/          # Protected route group (tier 1+)
+│   │   │   │   ├── dashboard/        # User dashboard
+│   │   │   │   ├── profile/          # User profile view/edit
+│   │   │   │   └── settings/         # Account settings
+│   │   │   │
+│   │   │   ├── (admin)/              # Admin route group (tier 3+)
+│   │   │   │   └── admin/
+│   │   │   │       ├── users/        # User management
+│   │   │   │       │   └── [id]/     # Individual user detail/edit
+│   │   │   │       ├── tiers/        # Tier configuration
+│   │   │   │       └── audit/        # Audit log viewer
+│   │   │   │
+│   │   │   └── api/                  # API Routes
+│   │   │       ├── auth/
+│   │   │       │   └── callback/     # Supabase auth callback
+│   │   │       └── v1/               # Versioned API
+│   │   │           ├── users/        # User API endpoints
+│   │   │           ├── tiers/        # Tier API endpoints
+│   │   │           └── admin/        # Admin-only API
+│   │   │               ├── users/    # Admin user management
+│   │   │               │   └── [id]/
+│   │   │               │       └── tier/  # Tier change endpoint
+│   │   │               ├── stats/    # Dashboard statistics
+│   │   │               └── audit/    # Audit log API
+│   │   │
+│   │   ├── components/               # React Components
+│   │   │   ├── ui/                   # Base UI (shadcn/ui style)
+│   │   │   ├── auth/                 # Auth forms and providers
+│   │   │   ├── layout/               # Header, footer, navigation
+│   │   │   ├── guards/               # TierGate, AuthGuard
+│   │   │   ├── admin/                # Admin-specific components
+│   │   │   └── shared/               # Shared/common components
+│   │   │
+│   │   ├── lib/                      # Core Libraries
+│   │   │   ├── supabase/             # Supabase client configs
+│   │   │   ├── auth/                 # Auth actions and utilities
+│   │   │   ├── database/             # DB types and queries
+│   │   │   └── utils/                # Utility functions
+│   │   │
+│   │   ├── hooks/                    # React Hooks
+│   │   │   └── admin/                # Admin-specific hooks
+│   │   │
+│   │   ├── types/                    # TypeScript Type Definitions
+│   │   ├── config/                   # App configuration
+│   │   └── styles/                   # Global styles
+│   │
+│   └── public/                       # Static Assets
+│       ├── images/                   # Image assets
+│       └── icons/                    # Icon files
+│
+├── supabase/                         # Supabase Configuration
+│   ├── migrations/                   # SQL migration files
+│   ├── seeds/                        # Seed data for development
+│   └── functions/                    # Edge functions (optional)
+│
+├── scripts/                          # Utility Scripts
+│   ├── deploy/                       # Deployment scripts
+│   ├── db/                           # Database utilities
+│   └── setup/                        # Project setup scripts
+│
+├── config/                           # Server/Deployment Config
+│   ├── nginx/                        # Nginx configurations
+│   └── pm2/                          # PM2 ecosystem files
+│
+├── docs/                             # Documentation
+│   ├── PRD.md                        # This document
+│   ├── api/                          # API documentation
+│   ├── architecture/                 # Architecture diagrams/docs
+│   └── guides/                       # Setup and usage guides
+│
+├── tests/                            # Test Files
+│   ├── e2e/                          # End-to-end tests
+│   ├── integration/                  # Integration tests
+│   └── unit/                         # Unit tests
+│
+└── .taskmaster/                      # TaskMaster configuration
+    ├── config.json
+    ├── docs/
+    └── tasks/
+```
+
+### Directory Descriptions
+
+| Directory | Purpose |
+|-----------|---------|
+| `web/` | The complete Next.js 14+ application with App Router |
+| `web/src/app/` | Next.js App Router pages and API routes organized by route groups |
+| `web/src/components/` | Reusable React components organized by domain |
+| `web/src/lib/` | Core libraries including Supabase clients and utilities |
+| `web/src/hooks/` | Custom React hooks for data fetching and state |
+| `web/src/types/` | TypeScript type definitions |
+| `web/public/` | Static assets served by Next.js |
+| `supabase/` | Database migrations, seeds, and Supabase configuration |
+| `scripts/` | Automation scripts for deployment and database operations |
+| `config/` | Server configuration files for nginx, PM2, etc. |
+| `docs/` | Project documentation including this PRD |
+| `tests/` | Test files organized by test type |
+
+### Key Differences from Original Structure
+
+| Aspect | Original | Implemented |
+|--------|----------|-------------|
+| App Location | Root `src/` | `web/src/` |
+| Static Assets | Root `public/` | `web/public/` |
+| Config Files | Root level | `web/` level + `config/` |
+| Scripts | Not specified | Dedicated `scripts/` directory |
+| Tests | Not specified | Dedicated `tests/` directory |
+| Server Config | Not specified | `config/nginx/`, `config/pm2/` |
+
+### When Replicating This Project
+
+To use this foundation for a new project:
+
+1. Copy the entire `site-auth-db/` directory
+2. Rename to your project name
+3. Update `web/package.json` with new project details
+4. Create a new Supabase project
+5. Update environment variables in `web/.env.local`
+6. Run migrations from `supabase/migrations/`
+7. Start development with `cd web && pnpm dev`
+
+---
+
+## Project Structure
+
+```
+site-auth-db/
+├── docs/
+│   ├── PRD.md                    # This document
+│   ├── SETUP.md                  # Setup instructions
+│   └── ARCHITECTURE.md           # Technical deep-dive
+│
+├── src/
+│   ├── app/                      # Next.js App Router
+│   │   ├── (auth)/               # Auth route group
+│   │   │   ├── login/
+│   │   │   │   └── page.tsx
+│   │   │   ├── signup/
+│   │   │   │   └── page.tsx
+│   │   │   ├── forgot-password/
+│   │   │   │   └── page.tsx
+│   │   │   ├── reset-password/
+│   │   │   │   └── page.tsx
+│   │   │   └── callback/         # OAuth callback
+│   │   │       └── route.ts
+│   │   │
+│   │   ├── (protected)/          # Protected route group
+│   │   │   ├── dashboard/
+│   │   │   │   └── page.tsx
+│   │   │   ├── profile/
+│   │   │   │   └── page.tsx
+│   │   │   └── settings/
+│   │   │       └── page.tsx
+│   │   │
+│   │   ├── (admin)/              # Admin route group (tier 3+)
+│   │   │   ├── layout.tsx        # Admin layout with tier check
+│   │   │   └── admin/
+│   │   │       ├── page.tsx      # Dashboard overview
+│   │   │       ├── users/
+│   │   │       │   ├── page.tsx  # User list
+│   │   │       │   └── [id]/
+│   │   │       │       └── page.tsx  # User detail/edit
+│   │   │       ├── tiers/
+│   │   │       │   └── page.tsx  # Tier management
+│   │   │       └── audit/
+│   │   │           └── page.tsx  # Audit log viewer
+│   │   │
+│   │   ├── api/                  # API routes
+│   │   │   ├── auth/
+│   │   │   │   └── callback/
+│   │   │   │       └── route.ts  # OAuth callback handler
+│   │   │   └── v1/
+│   │   │       ├── users/
+│   │   │       │   └── route.ts
+│   │   │       ├── tiers/
+│   │   │       │   └── route.ts
+│   │   │       └── admin/        # Admin API endpoints
+│   │   │           ├── users/
+│   │   │           │   ├── route.ts      # List/create users
+│   │   │           │   └── [id]/
+│   │   │           │       ├── route.ts  # Get/update/delete user
+│   │   │           │       └── tier/
+│   │   │           │           └── route.ts  # Change tier
+│   │   │           ├── stats/
+│   │   │           │   └── route.ts      # Dashboard stats
+│   │   │           └── audit/
+│   │   │               └── route.ts      # Audit log
+│   │   │
+│   │   ├── layout.tsx            # Root layout
+│   │   ├── page.tsx              # Home page (public)
+│   │   └── globals.css
+│   │
+│   ├── components/
+│   │   ├── ui/                   # Base UI components
+│   │   │   ├── button.tsx
+│   │   │   ├── input.tsx
+│   │   │   ├── card.tsx
+│   │   │   └── ...
+│   │   │
+│   │   ├── auth/                 # Auth-specific components
+│   │   │   ├── login-form.tsx
+│   │   │   ├── signup-form.tsx
+│   │   │   ├── oauth-buttons.tsx
+│   │   │   └── auth-provider.tsx
+│   │   │
+│   │   ├── layout/               # Layout components
+│   │   │   ├── header.tsx
+│   │   │   ├── footer.tsx
+│   │   │   ├── sidebar.tsx
+│   │   │   └── navigation.tsx
+│   │   │
+│   │   ├── guards/               # Access control components
+│   │   │   ├── tier-gate.tsx     # Renders children based on tier
+│   │   │   └── auth-guard.tsx    # Renders children if authenticated
+│   │   │
+│   │   └── admin/                # Admin-specific components
+│   │       ├── stats-card.tsx    # Metric display card
+│   │       ├── user-table.tsx    # Paginated user table
+│   │       ├── user-filters.tsx  # Search and filter controls
+│   │       ├── tier-badge.tsx    # Color-coded tier indicator
+│   │       ├── tier-select.tsx   # Tier dropdown selector
+│   │       ├── pagination.tsx    # Table pagination
+│   │       └── audit-log-table.tsx  # Audit log display
+│   │
+│   ├── lib/
+│   │   ├── supabase/
+│   │   │   ├── client.ts         # Browser client
+│   │   │   ├── server.ts         # Server client
+│   │   │   ├── middleware.ts     # Middleware client
+│   │   │   └── admin.ts          # Service role client (server only)
+│   │   │
+│   │   ├── auth/
+│   │   │   ├── actions.ts        # Server actions for auth
+│   │   │   └── utils.ts          # Auth utility functions
+│   │   │
+│   │   ├── database/
+│   │   │   ├── types.ts          # Generated Supabase types
+│   │   │   └── queries.ts        # Reusable database queries
+│   │   │
+│   │   └── utils/
+│   │       ├── cn.ts             # Tailwind class merging
+│   │       └── validators.ts     # Zod schemas
+│   │
+│   ├── hooks/
+│   │   ├── use-user.ts           # Current user hook
+│   │   ├── use-tier.ts           # User tier hook
+│   │   ├── use-permission.ts     # Permission check hook
+│   │   └── admin/                # Admin-specific hooks
+│   │       ├── use-users.ts      # Paginated user list
+│   │       ├── use-user.ts       # Single user operations
+│   │       └── use-admin-stats.ts  # Dashboard statistics
+│   │
+│   ├── types/
+│   │   ├── auth.ts               # Auth-related types
+│   │   ├── database.ts           # Database types (re-export)
+│   │   └── api.ts                # API response types
+│   │
+│   └── middleware.ts             # Next.js middleware (route protection)
+│
+├── supabase/
+│   ├── migrations/               # Database migrations
+│   │   ├── 00001_initial_schema.sql
+│   │   ├── 00002_rls_policies.sql
+│   │   └── 00003_functions.sql
+│   │
+│   ├── seed.sql                  # Development seed data
+│   └── config.toml               # Supabase local config
+│
+├── public/
+│   └── ...
+│
+├── .env.example                  # Environment template
+├── .env.local                    # Local environment (gitignored)
+├── next.config.js
+├── tailwind.config.ts
+├── tsconfig.json
+├── package.json
+└── README.md
+```
+
+---
+
+## VPS Deployment Architecture
+
+### Server Environment Overview
+
+This foundation is designed for deployment on a VPS (Virtual Private Server) with the following directory structure:
+
+```
+/usr/home/birdahonk/
+├── dev/                          # Development and source code
+│   └── source/
+│       └── site-auth-db/         # This foundation (and cloned projects)
+│           ├── src/
+│           ├── package.json
+│           └── ...
+│
+└── public_html/                  # Web-accessible directory (Apache/nginx)
+    ├── myapp.domain.com/         # Subdomain directory (if applicable)
+    └── ...
+```
+
+### Deployment Strategy: Reverse Proxy (Recommended)
+
+For Next.js applications with server-side features (SSR, API routes, middleware), **reverse proxy** is the recommended approach. Static file symlinks will NOT work because Next.js requires a Node.js runtime.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     VPS DEPLOYMENT ARCHITECTURE                  │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│   Internet                                                       │
+│      │                                                           │
+│      ▼                                                           │
+│   ┌──────────────────────────────────────┐                      │
+│   │  Apache/nginx (public_html)          │                      │
+│   │  Listening on port 80/443            │                      │
+│   │  - SSL termination                   │                      │
+│   │  - Static file serving (if needed)   │                      │
+│   │  - Reverse proxy to Node.js          │                      │
+│   └──────────────────────────────────────┘                      │
+│                      │                                           │
+│                      │ ProxyPass to localhost:3000               │
+│                      ▼                                           │
+│   ┌──────────────────────────────────────┐                      │
+│   │  Next.js App (Node.js)               │                      │
+│   │  Running in ~/dev/source/site-auth-db│                      │
+│   │  - PM2 or systemd managed            │                      │
+│   │  - Port 3000 (internal only)         │                      │
+│   │  - Handles SSR, API, middleware      │                      │
+│   └──────────────────────────────────────┘                      │
+│                      │                                           │
+│                      ▼                                           │
+│   ┌──────────────────────────────────────┐                      │
+│   │  Supabase (External)                 │                      │
+│   │  - PostgreSQL database               │                      │
+│   │  - Authentication                    │                      │
+│   │  - Storage                           │                      │
+│   └──────────────────────────────────────┘                      │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Why Reverse Proxy (Not Symlinks)?
+
+| Approach | Works for Next.js? | Reason |
+|----------|-------------------|--------|
+| **Symlink to public_html** | ❌ No | Next.js needs Node.js runtime for SSR, API routes, middleware |
+| **Copy build output** | ⚠️ Partial | Only works for `next export` (static only), loses SSR/API/middleware |
+| **Reverse Proxy** | ✅ Yes | Full Next.js features, proper SSR, API routes work |
+
+### Directory Structure Decision
+
+**Source Code Location:** `/usr/home/birdahonk/dev/source/`
+- All application source code lives here
+- Version controlled with Git
+- Not directly web-accessible (secure)
+
+**Web Server Configuration:** `/usr/home/birdahonk/public_html/`
+- Contains Apache/nginx configuration files (e.g., `.htaccess`, proxy configs)
+- May contain a simple redirect/proxy setup file
+- Does NOT contain the actual Next.js application code
+
+### Deployment Options
+
+#### Option A: Subdomain Deployment (Recommended)
+
+Each application gets its own subdomain:
+- `myapp.birdahonk.com` → proxies to `localhost:3000`
+- `otherapp.birdahonk.com` → proxies to `localhost:3001`
+
+**Apache Virtual Host Configuration:**
+```apache
+# /usr/home/birdahonk/public_html/myapp.birdahonk.com/.htaccess
+# Or in Apache virtual host config
+
+<VirtualHost *:443>
+    ServerName myapp.birdahonk.com
+
+    SSLEngine on
+    SSLCertificateFile /path/to/cert.pem
+    SSLCertificateKeyFile /path/to/key.pem
+
+    ProxyPreserveHost On
+    ProxyPass / http://localhost:3000/
+    ProxyPassReverse / http://localhost:3000/
+
+    # WebSocket support (for real-time features)
+    RewriteEngine On
+    RewriteCond %{HTTP:Upgrade} websocket [NC]
+    RewriteCond %{HTTP:Connection} upgrade [NC]
+    RewriteRule ^/?(.*) ws://localhost:3000/$1 [P,L]
+</VirtualHost>
+```
+
+#### Option B: Path-Based Deployment
+
+Multiple apps under one domain:
+- `birdahonk.com/myapp/` → proxies to `localhost:3000`
+- `birdahonk.com/otherapp/` → proxies to `localhost:3001`
+
+**Note:** Requires `basePath` configuration in `next.config.js`:
+```javascript
+// next.config.js
+module.exports = {
+  basePath: '/myapp',
+  // ... other config
+}
+```
+
+### Process Management
+
+#### PM2 Setup (Recommended)
+
+PM2 keeps the Node.js application running and restarts on crashes:
+
+```bash
+# Install PM2 globally
+npm install -g pm2
+
+# Start the application
+cd /usr/home/birdahonk/dev/source/site-auth-db
+pm2 start npm --name "myapp" -- start
+
+# Configure to start on server reboot
+pm2 startup
+pm2 save
+
+# Useful commands
+pm2 status          # Check running apps
+pm2 logs myapp      # View logs
+pm2 restart myapp   # Restart after deploy
+pm2 stop myapp      # Stop the app
+```
+
+#### Ecosystem File for Multiple Apps
+
+```javascript
+// /usr/home/birdahonk/dev/ecosystem.config.js
+module.exports = {
+  apps: [
+    {
+      name: 'site-auth-db',
+      cwd: '/usr/home/birdahonk/dev/source/site-auth-db',
+      script: 'npm',
+      args: 'start',
+      env: {
+        NODE_ENV: 'production',
+        PORT: 3000
+      }
+    },
+    {
+      name: 'another-app',
+      cwd: '/usr/home/birdahonk/dev/source/another-app',
+      script: 'npm',
+      args: 'start',
+      env: {
+        NODE_ENV: 'production',
+        PORT: 3001
+      }
+    }
+  ]
+};
+```
+
+### Deployment Workflow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     DEPLOYMENT WORKFLOW                          │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  1. DEVELOP (Local Machine)                                      │
+│     └── Edit code, test locally with `pnpm dev`                 │
+│                                                                  │
+│  2. PUSH (Git Repository)                                        │
+│     └── git push origin main                                    │
+│                                                                  │
+│  3. PULL (VPS Server)                                           │
+│     └── ssh into VPS                                            │
+│     └── cd /usr/home/birdahonk/dev/source/site-auth-db          │
+│     └── git pull origin main                                    │
+│                                                                  │
+│  4. BUILD (VPS Server)                                           │
+│     └── pnpm install (if deps changed)                          │
+│     └── pnpm build                                              │
+│                                                                  │
+│  5. RESTART (VPS Server)                                         │
+│     └── pm2 restart myapp                                       │
+│                                                                  │
+│  6. VERIFY                                                       │
+│     └── pm2 logs myapp (check for errors)                       │
+│     └── Visit https://myapp.birdahonk.com                       │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Quick Deploy Script
+
+Create a deploy script at `/usr/home/birdahonk/dev/source/site-auth-db/deploy.sh`:
+
+```bash
+#!/bin/bash
+# deploy.sh - Run on VPS after git pull
+
+set -e  # Exit on error
+
+echo "📦 Installing dependencies..."
+pnpm install --frozen-lockfile
+
+echo "🔨 Building application..."
+pnpm build
+
+echo "🔄 Restarting application..."
+pm2 restart myapp || pm2 start npm --name "myapp" -- start
+
+echo "✅ Deployment complete!"
+pm2 logs myapp --lines 20
+```
+
+### Environment Variables on VPS
+
+Store production environment variables securely:
+
+```bash
+# Option 1: PM2 ecosystem file (shown above)
+# Option 2: System environment file
+# /usr/home/birdahonk/dev/source/site-auth-db/.env.production.local
+
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+NEXT_PUBLIC_APP_URL=https://myapp.birdahonk.com
+```
+
+**Security Note:** Ensure `.env.production.local` is:
+- NOT committed to Git (add to `.gitignore`)
+- Has restricted file permissions (`chmod 600`)
+
+### Port Allocation for Multiple Projects
+
+When running multiple cloned projects:
+
+| Project | Port | Subdomain |
+|---------|------|-----------|
+| site-auth-db (template) | 3000 | template.birdahonk.com |
+| project-a | 3001 | project-a.birdahonk.com |
+| project-b | 3002 | project-b.birdahonk.com |
+
+Configure each project's port via environment variable or `next.config.js`.
+
+---
+
+## Setup & Configuration Guide
+
+### Prerequisites
+
+- Node.js 18+ (LTS recommended)
+- pnpm (recommended) or npm
+- Supabase account (free tier works)
+- Git
+
+### Step 1: Supabase Project Setup
+
+1. **Create a new Supabase project:**
+   - Go to [supabase.com/dashboard](https://supabase.com/dashboard)
+   - Click "New Project"
+   - Choose organization and region (pick closest to your users)
+   - Set a strong database password (save this securely)
+   - Wait for project to initialize (~2 minutes)
+
+2. **Configure Authentication:**
+   - Navigate to Authentication → Providers
+   - **Email:** Enabled by default
+     - Configure: Confirm email = ON (recommended for production)
+     - Set site URL: `http://localhost:3000` (dev) or your production URL
+   - **Google OAuth (optional):**
+     - Create OAuth credentials at [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+     - Add client ID and secret to Supabase
+     - Add redirect URL: `https://<project-ref>.supabase.co/auth/v1/callback`
+   - **GitHub OAuth (optional):**
+     - Create OAuth app at GitHub → Settings → Developer settings
+     - Add client ID and secret to Supabase
+
+3. **Configure Email Templates (optional):**
+   - Navigate to Authentication → Email Templates
+   - Customize confirmation, magic link, and password reset emails
+
+4. **Get API Keys:**
+   - Navigate to Settings → API
+   - Copy:
+     - Project URL: `https://<project-ref>.supabase.co`
+     - `anon` public key
+     - `service_role` key (keep secret!)
+
+### Step 2: Local Development Setup
+
+```bash
+# Clone or copy the foundation
+git clone <repository-url> my-new-project
+cd my-new-project
+
+# Install dependencies
+pnpm install
+
+# Copy environment template
+cp .env.example .env.local
+
+# Edit .env.local with your Supabase credentials
+```
+
+### Step 3: Environment Configuration
+
+Create `.env.local` with these required variables:
+
+```env
+# ===========================================
+# SUPABASE CONFIGURATION
+# ===========================================
+NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+SUPABASE_SERVICE_ROLE_KEY=eyJ...  # Server-only, never expose to client
+
+# ===========================================
+# APPLICATION CONFIGURATION
+# ===========================================
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_APP_NAME="My App"
+
+# ===========================================
+# OPTIONAL: OAUTH PROVIDERS
+# ===========================================
+# Configured in Supabase Dashboard, not needed here
+```
+
+### Step 4: Database Migration
+
+```bash
+# Option A: Run migrations via Supabase CLI (recommended)
+pnpm supabase db push
+
+# Option B: Manual SQL execution
+# Copy contents of supabase/migrations/*.sql
+# Paste into Supabase Dashboard → SQL Editor → Run
+```
+
+### Step 5: Generate TypeScript Types
+
+```bash
+# Generate types from your Supabase schema
+pnpm supabase gen types typescript --project-id <project-ref> > src/lib/database/types.ts
+```
+
+### Step 6: Run Development Server
+
+```bash
+pnpm dev
+```
+
+Visit `http://localhost:3000` to see your app.
+
+---
+
+## Security Considerations
+
+### Authentication Security
+
+| Measure | Implementation |
+|---------|----------------|
+| Password hashing | Bcrypt (handled by Supabase) |
+| Session tokens | JWT in HTTP-only cookies |
+| CSRF protection | Built into Next.js server actions |
+| Rate limiting | Supabase Auth built-in |
+| Brute force protection | Account lockout after failed attempts |
+
+### Database Security
+
+| Measure | Implementation |
+|---------|----------------|
+| Row Level Security | Enabled on all tables |
+| SQL injection | Prevented by parameterized queries |
+| Data validation | Zod schemas on all inputs |
+| Service role isolation | Only used server-side |
+
+### Client Security
+
+| Measure | Implementation |
+|---------|----------------|
+| XSS prevention | React auto-escaping, CSP headers |
+| Sensitive data | Never exposed to client bundle |
+| Environment variables | `NEXT_PUBLIC_` prefix only for safe values |
+
+### Security Checklist Before Production
+
+- [ ] Enable email confirmation
+- [ ] Configure strong password requirements
+- [ ] Set up rate limiting rules
+- [ ] Enable HTTPS only (via hosting platform)
+- [ ] Review and test all RLS policies
+- [ ] Remove seed data
+- [ ] Audit all `SECURITY DEFINER` functions
+- [ ] Set restrictive CORS policies
+- [ ] Configure Content Security Policy headers
+
+---
+
+## Reusability Guidelines
+
+### Project Initialization Script
+
+This template includes an automated initialization script that prepares a clean copy for new projects. The script uses a **whitelist approach** to ensure only template files are kept, automatically removing development-specific directories and files.
+
+#### Quick Start (Recommended)
+
+```bash
+# Option 1: Using degit (cleanest - no git history)
+npx degit yourusername/site-auth-db my-new-project
+cd my-new-project
+./scripts/init-new-project.sh my-new-project
+
+# Option 2: Using GitHub Template (if repo is marked as template)
+# Click "Use this template" on GitHub, then:
+cd my-new-project
+./scripts/init-new-project.sh my-new-project
+
+# Option 3: Traditional clone
+git clone <repository-url> my-new-project
+cd my-new-project
+./scripts/init-new-project.sh my-new-project
+```
+
+#### What the Init Script Does
+
+| Step | Action | Purpose |
+|------|--------|---------|
+| 1 | Remove dev directories | Cleans `.taskmaster/`, `.claude/`, `.git/`, `node_modules/`, etc. |
+| 2 | Remove dev files | Removes `.env.local` and other local config files |
+| 3 | Check unknown dirs | Prompts to remove any directories not in whitelist |
+| 4 | Update package.json | Sets the new project name |
+| 5 | Create .env.local | Copies from `.env.example` template |
+| 6 | Initialize git | Fresh git repository with no history |
+| 7 | Install dependencies | Optionally runs `pnpm install` |
+
+#### Whitelist Configuration
+
+The script maintains a whitelist of directories and files that are part of the template. Development tools (AI assistants, IDEs, build caches) are automatically excluded.
+
+**Whitelisted Directories:**
+- `web/` - Next.js application
+- `supabase/` - Database migrations and config
+- `scripts/` - Utility and deployment scripts
+- `config/` - Server configuration
+- `docs/` - Documentation
+- `tests/` - Test files
+
+**Automatically Removed:**
+- `.taskmaster/` - TaskMaster AI tasks (template development)
+- `.claude/` - Claude Code context/settings
+- `.cursor/` - Cursor IDE settings
+- `.git/` - Git history (reinitialized fresh)
+- `node_modules/` - Dependencies (reinstalled)
+- `.next/` - Next.js build output
+- `.env.local` - Local environment (contains real credentials)
+
+#### Extending the Whitelist
+
+If you add new directories to the template during development, update the whitelist in `scripts/init-new-project.sh`:
+
+```bash
+WHITELISTED_DIRS=(
+    "web"
+    "supabase"
+    "scripts"
+    "config"
+    "docs"
+    "tests"
+    "your-new-dir"  # Add new template directories here
+)
+```
+
+### When Cloning This Foundation
+
+1. **Run the Init Script:**
+   ```bash
+   ./scripts/init-new-project.sh my-project-name
+   ```
+   This handles most setup automatically.
+
+2. **Update Project Identity:**
+   - Change `package.json` name and description (done by script)
+   - Update `NEXT_PUBLIC_APP_NAME` in environment
+   - Replace favicon and logos
+
+3. **Create New Supabase Project:**
+   - Never share databases between projects
+   - Run migrations on new project
+   - Update environment variables in `.env.local`
+
+4. **Customize Tiers:**
+   - Modify `supabase/migrations/00001_initial_schema.sql`
+   - Add/remove tiers as needed
+   - Update RLS policies accordingly
+
+5. **Extend Schema:**
+   - Add new migrations (never modify existing ones)
+   - Follow naming convention: `00004_add_feature.sql`
+   - Always enable RLS on new tables
+
+### What to Keep
+
+- Authentication flow and components
+- Tier system architecture
+- Supabase client configurations
+- Middleware structure
+- Project folder organization
+
+### What to Customize
+
+- UI styling and branding
+- Tier names and permissions
+- Additional database tables
+- Business logic and features
+- API endpoints
+
+---
+
+## Future Considerations
+
+### Potential Enhancements
+
+| Feature | Complexity | Value |
+|---------|------------|-------|
+| Multi-factor authentication (TOTP) | Medium | High |
+| Social login expansion | Low | Medium |
+| Team/organization support | High | High |
+| Webhook integrations | Medium | Medium |
+| Audit log UI | Medium | Low |
+| Rate limiting dashboard | Medium | Low |
+| Internationalization (i18n) | Medium | Medium |
+
+### Scalability Path
+
+```
+Single Project → Multi-tenant → Enterprise
+      ↓               ↓              ↓
+  This Foundation   Add org/team   Add SSO/SAML
+                    tables +       Compliance
+                    RLS            Features
+```
+
+---
+
+## Appendix A: Technology Rationale
+
+### Why Next.js 14+ (App Router)?
+
+- Server Components reduce client bundle size
+- Built-in API routes colocate with pages
+- Middleware for route protection
+- Server Actions simplify form handling
+- Industry standard, excellent documentation
+
+### Why Tailwind CSS?
+
+- Utility-first reduces custom CSS maintenance
+- Easy to override for project-specific branding
+- Excellent developer experience
+- Tree-shaking removes unused styles
+
+### Why Supabase over raw PostgreSQL?
+
+- Auth system included and integrated
+- Real-time subscriptions built-in
+- Storage for files included
+- Dashboard for data exploration
+- Generous free tier
+
+### Why NOT Clerk?
+
+While Clerk is excellent for rapid prototyping, Supabase Auth is preferred here because:
+
+1. **No Vendor Lock-in:** Your auth data lives in your database
+2. **Cost Efficiency:** Supabase free tier is more generous for auth
+3. **Database Integration:** RLS policies work directly with auth.uid()
+4. **Self-Hostable:** Can migrate to self-hosted Supabase if needed
+5. **Single Ecosystem:** One vendor for auth + database + storage
+
+---
+
+## Appendix B: Quick Reference
+
+### Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Public anon key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Service role key (server only) |
+| `NEXT_PUBLIC_APP_URL` | Yes | Your app's URL |
+| `NEXT_PUBLIC_APP_NAME` | No | Display name for app |
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `src/middleware.ts` | Route protection |
+| `src/lib/supabase/server.ts` | Server-side Supabase client |
+| `src/hooks/use-tier.ts` | Access user tier in components |
+| `src/components/guards/tier-gate.tsx` | Conditional rendering by tier |
+| `supabase/migrations/*.sql` | Database schema |
+
+### Commands
+
+```bash
+pnpm dev              # Start development server
+pnpm build            # Production build
+pnpm supabase db push # Apply migrations
+pnpm supabase gen types typescript  # Generate types
+```
+
+---
+
+*End of PRD*

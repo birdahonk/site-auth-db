@@ -1,0 +1,139 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "Initialize Next.js 14+ Project with TypeScript and Core Dependencies",
+        "description": "Set up the foundational Next.js project structure with App Router, TypeScript, Tailwind CSS, and essential dependencies as specified in the PRD",
+        "details": "Create a new Next.js 14+ project using `npx create-next-app@latest` with TypeScript and Tailwind CSS. Install core dependencies: @supabase/supabase-js, @supabase/auth-helpers-nextjs, zod, react-hook-form, @hookform/resolvers. Set up the project structure with (auth), (protected), and (admin) route groups. Configure next.config.js for production optimization. Set up tailwind.config.ts with custom theme extensions. Create initial .env.example file with all required environment variables.",
+        "testStrategy": "Verify project builds successfully with `npm run build`, TypeScript compilation passes without errors, and all route groups are accessible. Test that environment variables are properly typed and validated.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 2,
+        "title": "Configure Supabase Integration and Database Schema",
+        "description": "Set up Supabase client configurations and implement the complete database schema with Row Level Security policies",
+        "details": "Create Supabase client configurations in src/lib/supabase/ for browser, server, middleware, and admin (service role) clients. Implement the complete database schema in supabase/migrations/00001_initial_schema.sql including profiles, tiers, and audit_log tables. Create RLS policies in 00002_rls_policies.sql with tier-based access control. Add database functions and triggers in 00003_functions.sql for auto-profile creation, timestamp updates, and tier management helpers. Generate TypeScript types using Supabase CLI.",
+        "testStrategy": "Test database connection from all client types, verify RLS policies block unauthorized access, test auto-profile creation trigger on user signup, and validate all database functions work correctly.",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 3,
+        "title": "Implement Authentication System with Supabase Auth",
+        "description": "Build complete authentication flow including signup, login, password reset, email verification, and OAuth integration",
+        "details": "Create authentication pages in (auth) route group: login, signup, forgot-password, reset-password, and OAuth callback handler. Implement auth components: LoginForm, SignupForm, OAuthButtons with Google and GitHub integration. Set up server actions for auth operations in lib/auth/actions.ts. Configure middleware.ts for route protection based on authentication status and user tiers. Implement session management with HTTP-only cookies and automatic token refresh.",
+        "testStrategy": "Test complete auth flows: email/password signup with verification, login/logout, password reset, OAuth login with Google/GitHub. Verify middleware correctly protects routes and redirects unauthenticated users. Test session persistence across browser refreshes.",
+        "priority": "high",
+        "dependencies": [
+          2
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 4,
+        "title": "Create Tier-Based Access Control System",
+        "description": "Implement the flexible N-tier access control system with guards, hooks, and middleware integration",
+        "details": "Create tier management hooks in src/hooks/: use-user.ts, use-tier.ts, use-permission.ts. Implement access control components: TierGate for conditional rendering, AuthGuard for authentication checks. Update middleware.ts to enforce tier-based route protection. Create utility functions for tier validation and permission checking. Implement tier badge component for UI display. Set up default tier system (0: anonymous, 1: free, 2: premium, 3: admin) with extensibility for custom tiers.",
+        "testStrategy": "Test tier-based route protection, verify TierGate component shows/hides content correctly, test permission hooks return accurate results, and validate middleware blocks insufficient tier access with proper redirects.",
+        "priority": "high",
+        "dependencies": [
+          3
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 5,
+        "title": "Build Protected User Dashboard and Profile Management",
+        "description": "Create user dashboard, profile viewing/editing, and account settings pages for authenticated users",
+        "details": "Implement protected pages in (protected) route group: dashboard with user overview, profile page with viewing/editing capabilities, settings page for account management. Create profile editing form with validation using react-hook-form and zod. Implement password change functionality. Add user avatar upload/management. Create reusable UI components for user information display and editing. Ensure all pages respect tier-based access control.",
+        "testStrategy": "Test profile viewing and editing functionality, verify form validation works correctly, test password change flow, validate avatar upload/display, and ensure only authenticated users can access protected routes.",
+        "priority": "medium",
+        "dependencies": [
+          4
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 6,
+        "title": "Develop Admin Dashboard Overview and Statistics",
+        "description": "Create the admin dashboard with system metrics, user statistics, and overview components",
+        "details": "Build admin dashboard in (admin) route group with tier 3+ access control. Create StatsCard component for displaying metrics (total users, users by tier, recent signups, active users). Implement admin layout with navigation and tier verification. Create admin API endpoints in api/v1/admin/stats/ for dashboard data. Use server components with direct database queries via service role client. Add real-time statistics updates and responsive design for admin interface.",
+        "testStrategy": "Verify only tier 3+ users can access admin routes, test statistics accuracy against database, validate real-time updates work correctly, and ensure responsive design works on different screen sizes.",
+        "priority": "medium",
+        "dependencies": [
+          4
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 7,
+        "title": "Implement Admin User Management System",
+        "description": "Build comprehensive user management interface with search, filtering, pagination, and user editing capabilities",
+        "details": "Create user management pages: user list with search/filter/pagination, individual user detail/edit pages. Implement UserTable component with sortable columns, search functionality, and tier filtering. Build user editing interface for tier changes, account status management, and profile updates. Create admin API endpoints for user CRUD operations. Implement bulk actions for multiple user management. Add confirmation dialogs for destructive actions and audit logging for all admin actions.",
+        "testStrategy": "Test user search and filtering functionality, verify pagination works correctly, test user editing and tier changes, validate bulk actions work properly, and ensure all admin actions are properly logged.",
+        "priority": "medium",
+        "dependencies": [
+          6
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 8,
+        "title": "Create Audit Logging and Security Monitoring",
+        "description": "Implement comprehensive audit logging system for security monitoring and compliance",
+        "details": "Build audit logging system that captures user signups, logins, tier changes, admin actions, and security events. Create audit log viewer in admin panel with filtering and search capabilities. Implement automatic logging triggers for database changes. Add IP address tracking and session monitoring. Create audit log API endpoints with proper access control. Implement log retention policies and data export functionality for compliance.",
+        "testStrategy": "Verify all critical actions are logged correctly, test audit log viewer functionality, validate log filtering and search work properly, and ensure sensitive information is not exposed in logs.",
+        "priority": "medium",
+        "dependencies": [
+          7
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 9,
+        "title": "Implement API Layer and Data Validation",
+        "description": "Create comprehensive API layer with proper validation, error handling, and security measures",
+        "details": "Build API routes in api/v1/ with proper structure: users, tiers, admin endpoints. Implement Zod schemas for request/response validation in lib/utils/validators.ts. Add comprehensive error handling with proper HTTP status codes. Implement rate limiting for API endpoints. Create type-safe API response interfaces. Add API documentation and OpenAPI schema generation. Implement proper CORS configuration and security headers.",
+        "testStrategy": "Test all API endpoints with various input scenarios, verify validation catches invalid data, test error handling returns proper responses, validate rate limiting works correctly, and ensure security headers are properly set.",
+        "priority": "medium",
+        "dependencies": [
+          8
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 10,
+        "title": "Setup Production Deployment and Documentation",
+        "description": "Configure production deployment architecture, create comprehensive documentation, and setup deployment scripts",
+        "details": "Create production deployment configuration for VPS with reverse proxy setup. Write comprehensive setup documentation including Supabase configuration, environment variables, and deployment steps. Create deployment scripts for automated builds and PM2 process management. Set up production environment configuration with proper security settings. Create ecosystem.config.js for PM2 multi-app management. Write reusability guidelines and customization instructions. Add security checklist and production optimization guide.",
+        "testStrategy": "Test deployment process on clean environment, verify all documentation steps work correctly, validate production build runs without errors, test PM2 process management, and ensure security configurations are properly applied.",
+        "priority": "medium",
+        "dependencies": [
+          9
+        ],
+        "status": "pending",
+        "subtasks": []
+      }
+    ],
+    "metadata": {
+      "created": "2025-12-17T02:30:46.902Z",
+      "updated": "2025-12-17T02:30:46.902Z",
+      "description": "Tasks for master context"
+    }
+  }
+}
