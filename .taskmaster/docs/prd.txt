@@ -17,12 +17,13 @@
 7. [Database Design](#database-design)
 8. [Feature Requirements](#feature-requirements)
 9. [Admin Dashboard](#admin-dashboard)
-10. [Project Structure](#project-structure)
-11. [VPS Deployment Architecture](#vps-deployment-architecture)
-12. [Setup & Configuration Guide](#setup--configuration-guide)
-13. [Security Considerations](#security-considerations)
-14. [Reusability Guidelines](#reusability-guidelines)
-15. [Future Considerations](#future-considerations)
+10. [Implemented Project Structure](#implemented-project-structure)
+11. [Project Structure](#project-structure)
+12. [VPS Deployment Architecture](#vps-deployment-architecture)
+13. [Setup & Configuration Guide](#setup--configuration-guide)
+14. [Security Considerations](#security-considerations)
+15. [Reusability Guidelines](#reusability-guidelines)
+16. [Future Considerations](#future-considerations)
 
 ---
 
@@ -108,6 +109,8 @@ The foundation supports a flexible N-tier system. Default configuration includes
 
 ## Technical Architecture
 
+> **IMPORTANT (February 2026):** The technology versions listed in this PRD section reflect the original December 2025 planning. The authoritative, current stack is documented in `docs/TECH_STACK.md`. Key changes: Next.js 14 -> 16, React 18 -> 19, Tailwind v3 -> v4 (CSS-first config), `@supabase/auth-helpers-nextjs` -> `@supabase/ssr`, `middleware.ts` -> `proxy.ts`.
+
 ### Recommended Technology Stack
 
 ```
@@ -179,7 +182,7 @@ The foundation supports a flexible N-tier system. Default configuration includes
 
 ### Session Management
 
-- **Server-side sessions** via Supabase Auth Helpers
+- **Server-side sessions** via `@supabase/ssr` (replaces deprecated Supabase Auth Helpers)
 - **JWT tokens** stored in HTTP-only cookies (secure, no XSS exposure)
 - **Automatic token refresh** handled by Supabase client
 - **Session duration:** Configurable (default 1 week)
@@ -741,7 +744,159 @@ If more sophisticated admin features are needed later, the foundation can be ext
 
 ---
 
+## Implemented Project Structure
+
+> **Note:** This is the actual directory structure that has been created for this project. It differs from the originally proposed structure in the [Project Structure](#project-structure) section to better support reusability and coexistence with other project directories.
+
+### Design Decisions
+
+The implemented structure places the Next.js application inside a `web/` root directory rather than at the project root. This design allows:
+
+1. **Reusability** - The entire `web/` directory can be copied to new projects
+2. **Coexistence** - Other directories (`scripts/`, `tools/`, `config/`) can live alongside without conflict
+3. **Separation of Concerns** - Clear distinction between web app code, database configs, deployment scripts, and documentation
+4. **Monorepo-Ready** - Structure supports future addition of mobile apps, packages, or other services
+
+### Complete Directory Structure
+
+```
+site-auth-db/
+├── web/                              # Next.js 14+ Application (MAIN APP)
+│   ├── src/
+│   │   ├── app/                      # Next.js App Router
+│   │   │   ├── (auth)/               # Auth route group (public)
+│   │   │   │   ├── login/            # Login page
+│   │   │   │   ├── signup/           # Registration page
+│   │   │   │   ├── forgot-password/  # Password reset request
+│   │   │   │   ├── reset-password/   # Password reset form
+│   │   │   │   └── callback/         # OAuth callback handler
+│   │   │   │
+│   │   │   ├── (protected)/          # Protected route group (tier 1+)
+│   │   │   │   ├── dashboard/        # User dashboard
+│   │   │   │   ├── profile/          # User profile view/edit
+│   │   │   │   └── settings/         # Account settings
+│   │   │   │
+│   │   │   ├── (admin)/              # Admin route group (tier 3+)
+│   │   │   │   └── admin/
+│   │   │   │       ├── users/        # User management
+│   │   │   │       │   └── [id]/     # Individual user detail/edit
+│   │   │   │       ├── tiers/        # Tier configuration
+│   │   │   │       └── audit/        # Audit log viewer
+│   │   │   │
+│   │   │   └── api/                  # API Routes
+│   │   │       ├── auth/
+│   │   │       │   └── callback/     # Supabase auth callback
+│   │   │       └── v1/               # Versioned API
+│   │   │           ├── users/        # User API endpoints
+│   │   │           ├── tiers/        # Tier API endpoints
+│   │   │           └── admin/        # Admin-only API
+│   │   │               ├── users/    # Admin user management
+│   │   │               │   └── [id]/
+│   │   │               │       └── tier/  # Tier change endpoint
+│   │   │               ├── stats/    # Dashboard statistics
+│   │   │               └── audit/    # Audit log API
+│   │   │
+│   │   ├── components/               # React Components
+│   │   │   ├── ui/                   # Base UI (shadcn/ui style)
+│   │   │   ├── auth/                 # Auth forms and providers
+│   │   │   ├── layout/               # Header, footer, navigation
+│   │   │   ├── guards/               # TierGate, AuthGuard
+│   │   │   ├── admin/                # Admin-specific components
+│   │   │   └── shared/               # Shared/common components
+│   │   │
+│   │   ├── lib/                      # Core Libraries
+│   │   │   ├── supabase/             # Supabase client configs
+│   │   │   ├── auth/                 # Auth actions and utilities
+│   │   │   ├── database/             # DB types and queries
+│   │   │   └── utils/                # Utility functions
+│   │   │
+│   │   ├── hooks/                    # React Hooks
+│   │   │   └── admin/                # Admin-specific hooks
+│   │   │
+│   │   ├── types/                    # TypeScript Type Definitions
+│   │   ├── config/                   # App configuration
+│   │   └── styles/                   # Global styles
+│   │
+│   └── public/                       # Static Assets
+│       ├── images/                   # Image assets
+│       └── icons/                    # Icon files
+│
+├── supabase/                         # Supabase Configuration
+│   ├── migrations/                   # SQL migration files
+│   ├── seeds/                        # Seed data for development
+│   └── functions/                    # Edge functions (optional)
+│
+├── scripts/                          # Utility Scripts
+│   ├── deploy/                       # Deployment scripts
+│   ├── db/                           # Database utilities
+│   └── setup/                        # Project setup scripts
+│
+├── config/                           # Server/Deployment Config
+│   ├── nginx/                        # Nginx configurations
+│   └── pm2/                          # PM2 ecosystem files
+│
+├── docs/                             # Documentation
+│   ├── PRD.md                        # This document
+│   ├── api/                          # API documentation
+│   ├── architecture/                 # Architecture diagrams/docs
+│   └── guides/                       # Setup and usage guides
+│
+├── tests/                            # Test Files
+│   ├── e2e/                          # End-to-end tests
+│   ├── integration/                  # Integration tests
+│   └── unit/                         # Unit tests
+│
+└── .taskmaster/                      # TaskMaster configuration
+    ├── config.json
+    ├── docs/
+    └── tasks/
+```
+
+### Directory Descriptions
+
+| Directory | Purpose |
+|-----------|---------|
+| `web/` | The complete Next.js 14+ application with App Router |
+| `web/src/app/` | Next.js App Router pages and API routes organized by route groups |
+| `web/src/components/` | Reusable React components organized by domain |
+| `web/src/lib/` | Core libraries including Supabase clients and utilities |
+| `web/src/hooks/` | Custom React hooks for data fetching and state |
+| `web/src/types/` | TypeScript type definitions |
+| `web/public/` | Static assets served by Next.js |
+| `supabase/` | Database migrations, seeds, and Supabase configuration |
+| `scripts/` | Automation scripts for deployment and database operations |
+| `config/` | Server configuration files for nginx, PM2, etc. |
+| `docs/` | Project documentation including this PRD |
+| `tests/` | Test files organized by test type |
+
+### Key Differences from Original Structure
+
+| Aspect | Original | Implemented |
+|--------|----------|-------------|
+| App Location | Root `src/` | `web/src/` |
+| Static Assets | Root `public/` | `web/public/` |
+| Config Files | Root level | `web/` level + `config/` |
+| Scripts | Not specified | Dedicated `scripts/` directory |
+| Tests | Not specified | Dedicated `tests/` directory |
+| Server Config | Not specified | `config/nginx/`, `config/pm2/` |
+
+### When Replicating This Project
+
+To use this foundation for a new project:
+
+1. Copy the entire `site-auth-db/` directory
+2. Rename to your project name
+3. Update `web/package.json` with new project details
+4. Create a new Supabase project
+5. Update environment variables in `web/.env.local`
+6. Run migrations from `supabase/migrations/`
+7. Start development with `cd web && pnpm dev`
+
+---
+
 ## Project Structure
+
+> **Note:** This section reflects the original design. See the "Implemented Project Structure" section above for the actual layout, and `docs/TECH_STACK.md` for current file naming (e.g., `next.config.ts` instead of `next.config.js`, no `tailwind.config.ts`, `proxy.ts` instead of `middleware.ts`).
 
 ```
 site-auth-db/
@@ -1326,24 +1481,102 @@ Visit `http://localhost:3000` to see your app.
 
 ## Reusability Guidelines
 
+### Project Initialization Script
+
+This template includes an automated initialization script that prepares a clean copy for new projects. The script uses a **whitelist approach** to ensure only template files are kept, automatically removing development-specific directories and files.
+
+#### Quick Start (Recommended)
+
+```bash
+# Option 1: Using degit (cleanest - no git history)
+npx degit yourusername/site-auth-db my-new-project
+cd my-new-project
+./scripts/init-new-project.sh my-new-project
+
+# Option 2: Using GitHub Template (if repo is marked as template)
+# Click "Use this template" on GitHub, then:
+cd my-new-project
+./scripts/init-new-project.sh my-new-project
+
+# Option 3: Traditional clone
+git clone <repository-url> my-new-project
+cd my-new-project
+./scripts/init-new-project.sh my-new-project
+```
+
+#### What the Init Script Does
+
+| Step | Action | Purpose |
+|------|--------|---------|
+| 1 | Remove dev directories | Cleans `.taskmaster/`, `.claude/`, `.git/`, `node_modules/`, etc. |
+| 2 | Remove dev files | Removes `.env.local` and other local config files |
+| 3 | Check unknown dirs | Prompts to remove any directories not in whitelist |
+| 4 | Update package.json | Sets the new project name |
+| 5 | Create .env.local | Copies from `.env.example` template |
+| 6 | Initialize git | Fresh git repository with no history |
+| 7 | Install dependencies | Optionally runs `pnpm install` |
+
+#### Whitelist Configuration
+
+The script maintains a whitelist of directories and files that are part of the template. Development tools (AI assistants, IDEs, build caches) are automatically excluded.
+
+**Whitelisted Directories:**
+- `web/` - Next.js application
+- `supabase/` - Database migrations and config
+- `scripts/` - Utility and deployment scripts
+- `config/` - Server configuration
+- `docs/` - Documentation
+- `tests/` - Test files
+
+**Automatically Removed:**
+- `.taskmaster/` - TaskMaster AI tasks (template development)
+- `.claude/` - Claude Code context/settings
+- `.cursor/` - Cursor IDE settings
+- `.git/` - Git history (reinitialized fresh)
+- `node_modules/` - Dependencies (reinstalled)
+- `.next/` - Next.js build output
+- `.env.local` - Local environment (contains real credentials)
+
+#### Extending the Whitelist
+
+If you add new directories to the template during development, update the whitelist in `scripts/init-new-project.sh`:
+
+```bash
+WHITELISTED_DIRS=(
+    "web"
+    "supabase"
+    "scripts"
+    "config"
+    "docs"
+    "tests"
+    "your-new-dir"  # Add new template directories here
+)
+```
+
 ### When Cloning This Foundation
 
-1. **Update Project Identity:**
-   - Change `package.json` name and description
+1. **Run the Init Script:**
+   ```bash
+   ./scripts/init-new-project.sh my-project-name
+   ```
+   This handles most setup automatically.
+
+2. **Update Project Identity:**
+   - Change `package.json` name and description (done by script)
    - Update `NEXT_PUBLIC_APP_NAME` in environment
    - Replace favicon and logos
 
-2. **Create New Supabase Project:**
+3. **Create New Supabase Project:**
    - Never share databases between projects
    - Run migrations on new project
-   - Update environment variables
+   - Update environment variables in `.env.local`
 
-3. **Customize Tiers:**
+4. **Customize Tiers:**
    - Modify `supabase/migrations/00001_initial_schema.sql`
    - Add/remove tiers as needed
    - Update RLS policies accordingly
 
-4. **Extend Schema:**
+5. **Extend Schema:**
    - Add new migrations (never modify existing ones)
    - Follow naming convention: `00004_add_feature.sql`
    - Always enable RLS on new tables
@@ -1393,6 +1626,8 @@ Single Project → Multi-tenant → Enterprise
 ---
 
 ## Appendix A: Technology Rationale
+
+> **Note:** This project now targets Next.js 16. See `docs/TECH_STACK.md` for current patterns including `proxy.ts` (replaces `middleware.ts`) and mandatory async request APIs. The rationale below still applies.
 
 ### Why Next.js 14+ (App Router)?
 

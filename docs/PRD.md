@@ -109,6 +109,8 @@ The foundation supports a flexible N-tier system. Default configuration includes
 
 ## Technical Architecture
 
+> **IMPORTANT (February 2026):** The technology versions listed in this PRD section reflect the original December 2025 planning. The authoritative, current stack is documented in `docs/TECH_STACK.md`. Key changes: Next.js 14 -> 16, React 18 -> 19, Tailwind v3 -> v4 (CSS-first config), `@supabase/auth-helpers-nextjs` -> `@supabase/ssr`, `middleware.ts` -> `proxy.ts`.
+
 ### Recommended Technology Stack
 
 ```
@@ -180,7 +182,7 @@ The foundation supports a flexible N-tier system. Default configuration includes
 
 ### Session Management
 
-- **Server-side sessions** via Supabase Auth Helpers
+- **Server-side sessions** via `@supabase/ssr` (replaces deprecated Supabase Auth Helpers)
 - **JWT tokens** stored in HTTP-only cookies (secure, no XSS exposure)
 - **Automatic token refresh** handled by Supabase client
 - **Session duration:** Configurable (default 1 week)
@@ -893,6 +895,8 @@ To use this foundation for a new project:
 ---
 
 ## Project Structure
+
+> **Note:** This section reflects the original design. See the "Implemented Project Structure" section above for the actual layout, and `docs/TECH_STACK.md` for current file naming (e.g., `next.config.ts` instead of `next.config.js`, no `tailwind.config.ts`, `proxy.ts` instead of `middleware.ts`).
 
 ```
 site-auth-db/
@@ -1622,6 +1626,8 @@ Single Project → Multi-tenant → Enterprise
 ---
 
 ## Appendix A: Technology Rationale
+
+> **Note:** This project now targets Next.js 16. See `docs/TECH_STACK.md` for current patterns including `proxy.ts` (replaces `middleware.ts`) and mandatory async request APIs. The rationale below still applies.
 
 ### Why Next.js 14+ (App Router)?
 

@@ -3,9 +3,9 @@
     "tasks": [
       {
         "id": 1,
-        "title": "Initialize Next.js 14+ Project with TypeScript and Core Dependencies",
-        "description": "Set up the foundational Next.js project structure with App Router, TypeScript, Tailwind CSS, and essential dependencies as specified in the PRD",
-        "details": "Create a new Next.js 14+ project using `npx create-next-app@latest` with TypeScript and Tailwind CSS. Install core dependencies: @supabase/supabase-js, @supabase/auth-helpers-nextjs, zod, react-hook-form, @hookform/resolvers. Set up the project structure with (auth), (protected), and (admin) route groups. Configure next.config.js for production optimization. Set up tailwind.config.ts with custom theme extensions. Create initial .env.example file with all required environment variables.",
+        "title": "Initialize Next.js 16 Project with TypeScript and Core Dependencies",
+        "description": "Set up the foundational Next.js 16 project structure with App Router, TypeScript, Tailwind CSS v4, and essential dependencies as specified in docs/TECH_STACK.md",
+        "details": "Create a new Next.js 16 project using `npx create-next-app@latest` with TypeScript and Tailwind CSS v4. Install core dependencies: @supabase/supabase-js, @supabase/ssr, zod, react-hook-form, @hookform/resolvers. Install shadcn/ui with Tailwind v4 support (uses tw-animate-css, not tailwindcss-animate). Set up the project structure with (auth), (protected), and (admin) route groups. Configure next.config.ts (TypeScript config) for production optimization. Configure Tailwind v4 via CSS @theme directive in globals.css (no tailwind.config.ts needed). Create initial .env.example file with all required environment variables. Refer to docs/TECH_STACK.md for exact package versions and patterns.",
         "testStrategy": "Verify project builds successfully with `npm run build`, TypeScript compilation passes without errors, and all route groups are accessible. Test that environment variables are properly typed and validated.",
         "priority": "high",
         "dependencies": [],
@@ -16,7 +16,7 @@
         "id": 2,
         "title": "Configure Supabase Integration and Database Schema",
         "description": "Set up Supabase client configurations and implement the complete database schema with Row Level Security policies",
-        "details": "Create Supabase client configurations in src/lib/supabase/ for browser, server, middleware, and admin (service role) clients. Implement the complete database schema in supabase/migrations/00001_initial_schema.sql including profiles, tiers, and audit_log tables. Create RLS policies in 00002_rls_policies.sql with tier-based access control. Add database functions and triggers in 00003_functions.sql for auto-profile creation, timestamp updates, and tier management helpers. Generate TypeScript types using Supabase CLI.",
+        "details": "Create Supabase client configurations in src/lib/supabase/ for browser (client.ts), server (server.ts), proxy (proxy.ts), and admin (admin.ts, service role) clients. Use @supabase/ssr createBrowserClient for client.ts, @supabase/ssr createServerClient for server.ts and proxy.ts, and @supabase/supabase-js createClient for admin.ts. Refer to docs/TECH_STACK.md for the exact import patterns. Implement the complete database schema in supabase/migrations/00001_initial_schema.sql including profiles, tiers, and audit_log tables. Create RLS policies in 00002_rls_policies.sql with tier-based access control. Add database functions and triggers in 00003_functions.sql for auto-profile creation, timestamp updates, and tier management helpers. Generate TypeScript types using Supabase CLI.",
         "testStrategy": "Test database connection from all client types, verify RLS policies block unauthorized access, test auto-profile creation trigger on user signup, and validate all database functions work correctly.",
         "priority": "high",
         "dependencies": [
@@ -29,8 +29,8 @@
         "id": 3,
         "title": "Implement Authentication System with Supabase Auth",
         "description": "Build complete authentication flow including signup, login, password reset, email verification, and OAuth integration",
-        "details": "Create authentication pages in (auth) route group: login, signup, forgot-password, reset-password, and OAuth callback handler. Implement auth components: LoginForm, SignupForm, OAuthButtons with Google and GitHub integration. Set up server actions for auth operations in lib/auth/actions.ts. Configure middleware.ts for route protection based on authentication status and user tiers. Implement session management with HTTP-only cookies and automatic token refresh.",
-        "testStrategy": "Test complete auth flows: email/password signup with verification, login/logout, password reset, OAuth login with Google/GitHub. Verify middleware correctly protects routes and redirects unauthenticated users. Test session persistence across browser refreshes.",
+        "details": "Create authentication pages in (auth) route group: login, signup, forgot-password, reset-password, and OAuth callback handler. Implement auth components: LoginForm, SignupForm, OAuthButtons with Google and GitHub integration. Set up server actions for auth operations in lib/auth/actions.ts. Configure proxy.ts (Next.js 16 replacement for middleware.ts) for route protection based on authentication status and user tiers. Use @supabase/ssr createServerClient with request/response cookie adapters for session refresh in proxy.ts. Implement session management with HTTP-only cookies and automatic token refresh. Refer to docs/TECH_STACK.md for @supabase/ssr patterns.",
+        "testStrategy": "Test complete auth flows: email/password signup with verification, login/logout, password reset, OAuth login with Google/GitHub. Verify proxy.ts correctly protects routes and redirects unauthenticated users. Test session persistence across browser refreshes.",
         "priority": "high",
         "dependencies": [
           2
@@ -41,9 +41,9 @@
       {
         "id": 4,
         "title": "Create Tier-Based Access Control System",
-        "description": "Implement the flexible N-tier access control system with guards, hooks, and middleware integration",
-        "details": "Create tier management hooks in src/hooks/: use-user.ts, use-tier.ts, use-permission.ts. Implement access control components: TierGate for conditional rendering, AuthGuard for authentication checks. Update middleware.ts to enforce tier-based route protection. Create utility functions for tier validation and permission checking. Implement tier badge component for UI display. Set up default tier system (0: anonymous, 1: free, 2: premium, 3: admin) with extensibility for custom tiers.",
-        "testStrategy": "Test tier-based route protection, verify TierGate component shows/hides content correctly, test permission hooks return accurate results, and validate middleware blocks insufficient tier access with proper redirects.",
+        "description": "Implement the flexible N-tier access control system with guards, hooks, and proxy.ts integration",
+        "details": "Create tier management hooks in src/hooks/: use-user.ts, use-tier.ts, use-permission.ts. Implement access control components: TierGate for conditional rendering, AuthGuard for authentication checks. Update proxy.ts to enforce tier-based route protection. Create utility functions for tier validation and permission checking. Implement tier badge component for UI display. Set up default tier system (0: anonymous, 1: free, 2: premium, 3: admin) with extensibility for custom tiers.",
+        "testStrategy": "Test tier-based route protection, verify TierGate component shows/hides content correctly, test permission hooks return accurate results, and validate proxy.ts blocks insufficient tier access with proper redirects.",
         "priority": "high",
         "dependencies": [
           3
@@ -107,7 +107,7 @@
         "id": 9,
         "title": "Implement API Layer and Data Validation",
         "description": "Create comprehensive API layer with proper validation, error handling, and security measures",
-        "details": "Build API routes in api/v1/ with proper structure: users, tiers, admin endpoints. Implement Zod schemas for request/response validation in lib/utils/validators.ts. Add comprehensive error handling with proper HTTP status codes. Implement rate limiting for API endpoints. Create type-safe API response interfaces. Add API documentation and OpenAPI schema generation. Implement proper CORS configuration and security headers.",
+        "details": "Build API routes in api/v1/ with proper structure: users, tiers, admin endpoints. Implement Zod schemas for request/response validation in lib/utils/validators.ts. Add comprehensive error handling with proper HTTP status codes. Implement rate limiting for API endpoints. Create type-safe API response interfaces. Add API documentation and OpenAPI schema generation. Implement proper CORS configuration and security headers. Note: Next.js 16 requires all request APIs (cookies(), headers(), params, searchParams) to be awaited -- use async patterns in all route handlers. Refer to docs/TECH_STACK.md for Next.js 16 async API patterns.",
         "testStrategy": "Test all API endpoints with various input scenarios, verify validation catches invalid data, test error handling returns proper responses, validate rate limiting works correctly, and ensure security headers are properly set.",
         "priority": "medium",
         "dependencies": [

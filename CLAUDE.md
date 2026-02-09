@@ -15,9 +15,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A **reusable website foundation template** providing authentication, tiered user access control, and admin dashboard capabilities. Built with Next.js 14+ (App Router), Supabase (Auth + PostgreSQL), TypeScript, and Tailwind CSS.
+A **reusable website foundation template** providing authentication, tiered user access control, and admin dashboard capabilities. Built with Next.js 16 (App Router), React 19, Supabase (Auth + PostgreSQL), TypeScript, and Tailwind CSS v4.
 
 This template is designed to be cloned and customized for different web applications while maintaining consistent security patterns.
+
+## Technology Stack (CRITICAL -- Read First)
+
+**MANDATORY:** Before implementing ANY code, read `docs/TECH_STACK.md` for exact package versions, API patterns, and deprecated-pattern warnings.
+
+| Category | Use This | NOT This |
+|----------|----------|----------|
+| Framework | Next.js 16 | ~~Next.js 14/15~~ |
+| React | React 19 | ~~React 18~~ |
+| Styling | Tailwind CSS v4 (CSS-first, `@theme`) | ~~tailwind.config.ts~~ |
+| Supabase Auth | `@supabase/ssr` | ~~@supabase/auth-helpers-nextjs~~ |
+| Route Protection | `proxy.ts` | ~~middleware.ts~~ |
+| Config | `next.config.ts` | ~~next.config.js~~ |
+| UI Animations | `tw-animate-css` | ~~tailwindcss-animate~~ |
+| UI Components | shadcn/ui (Tailwind v4 mode) | ~~v3 config~~ |
 
 ## Development Commands
 
@@ -66,7 +81,7 @@ site-auth-db/
 │       ├── hooks/            # React hooks (use-user, use-tier, use-permission)
 │       │   └── admin/        # Admin hooks (use-users, use-admin-stats)
 │       └── lib/
-│           ├── supabase/     # Supabase clients (client.ts, server.ts, middleware.ts, admin.ts)
+│           ├── supabase/     # Supabase clients (client.ts, server.ts, proxy.ts, admin.ts)
 │           ├── auth/         # Auth utilities and server actions
 │           └── utils/        # Validators (Zod schemas), helpers
 ├── supabase/                 # Database configuration
@@ -96,7 +111,7 @@ All access control is based on a 4-tier system stored in `profiles.tier`:
 - `(protected)/` - Requires tier >= 1
 - `(admin)/` - Requires tier >= 3
 
-**Middleware Protection:** `web/src/middleware.ts` enforces tier-based route protection using Supabase session + profile tier lookup.
+**Proxy-Based Protection:** `web/src/proxy.ts` enforces tier-based route protection using Supabase session + profile tier lookup. (Next.js 16 uses `proxy.ts` instead of `middleware.ts`.)
 
 ### Supabase Client Usage
 
@@ -106,7 +121,7 @@ Four Supabase client configurations for different contexts:
 |------|----------|
 | `lib/supabase/client.ts` | Browser/client components |
 | `lib/supabase/server.ts` | Server components, server actions |
-| `lib/supabase/middleware.ts` | Next.js middleware |
+| `lib/supabase/proxy.ts` | Next.js proxy (route protection) |
 | `lib/supabase/admin.ts` | Service role (bypasses RLS) - server only |
 
 **Important:** Admin client uses `SUPABASE_SERVICE_ROLE_KEY` and bypasses Row Level Security. Only use in secure server contexts.
@@ -196,6 +211,23 @@ Admin endpoints use service role client and verify tier >= 3:
 const profile = await adminClient.from('profiles').select('tier').eq('id', userId).single();
 if (profile.data?.tier < 3) return new Response('Forbidden', { status: 403 });
 ```
+
+### Supabase Client Pattern (Important)
+
+Use `@supabase/ssr`, NOT `@supabase/auth-helpers-nextjs` (deprecated):
+
+```ts
+// Browser client
+import { createBrowserClient } from '@supabase/ssr'
+
+// Server client (server components, server actions)
+import { createServerClient } from '@supabase/ssr'
+
+// Admin client (service role, bypasses RLS)
+import { createClient } from '@supabase/supabase-js'
+```
+
+See `docs/TECH_STACK.md` for complete setup patterns.
 
 ## Template Replication
 
