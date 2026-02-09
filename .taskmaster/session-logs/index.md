@@ -2,6 +2,16 @@
 
 This index tracks all work sessions for the **site-auth-db** project.
 
+**Project Status: ABANDONED / ARCHIVED** -- Replaced by Makerkit (makerkit.dev) as of February 8, 2026.
+
+---
+
+## [Session 20260208_202013](./2026/02/08/session-20260208_202013.md)
+**Date:** February 8, 2026 20:20 PST (February 9, 2026 04:20 UTC)
+**Summary:** Final session. Researched SaaS boilerplate landscape and decided to abandon this project in favor of Makerkit ($299 lifetime, ships auth/RBAC/admin/audit/payments/email/blog). Created build-vs-buy analysis (docs/RECOMMENDATION-starter-kit-evaluation.md) and Makerkit setup checklist (docs/CHECKLIST-makerkit-setup.md). Cancelled all 10 TaskMaster tasks. Project archived.
+**Todos:** 0 completed, 0 in-progress, 0 pending (no todos created)
+**TaskMaster Tasks:** 0 pending, 0 in-progress, 10 cancelled
+
 ---
 
 ## [Session 20260208_180252](./2026/02/08/session-20260208_180252.md)
